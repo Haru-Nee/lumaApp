@@ -1,0 +1,24 @@
+════════════════════════════════════════════════════════════
+  REPORTE LUMA - GESTOR DE TAREAS
+  Usuario : aldo (@aldo1234)
+  Fecha   : 07/06/2026
+════════════════════════════════════════════════════════════
+
+  RESUMEN GENERAL
+────────────────────────────────────────────────────────────
+  Total de tareas  : 0
+  Completadas      : 0
+  Pendientes       : 0
+  Rendimiento      : 0.0%
+
+ TAREAS COMPLETADAS
+────────────────────────────────────────────────────────────
+  Ninguna tarea completada 
+
+   TAREAS PENDIENTES
+────────────────────────────────────────────────────────────
+  Todas las tareas han sido completadas 
+
+════════════════════════════════════════════════════════════
+  Reporte generado por LUMA Task Manager
+════════════════════════════════════════════════════════════
