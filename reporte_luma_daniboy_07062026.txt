@@ -1,0 +1,66 @@
+════════════════════════════════════════════════════════════
+  REPORTE LUMA - GESTOR DE TAREAS
+  Usuario : daniel navarro (@daniboy)
+  Fecha   : 07/06/2026
+════════════════════════════════════════════════════════════
+
+  RESUMEN GENERAL
+────────────────────────────────────────────────────────────
+  Total de tareas  : 9
+  Completadas      : 8
+  Pendientes       : 1
+  Rendimiento      : 88.9%
+
+ TAREAS COMPLETADAS
+────────────────────────────────────────────────────────────
+  * ghjgjhghj
+      Categoría  : Matematicas
+      Creada     : 06-06-2026
+      Completada : 06-06-2026
+
+  * hjghjgj
+      Categoría  : Otro
+      Creada     : 06-06-2026
+      Completada : 06-06-2026
+
+  * dsadas
+      Categoría  : Matematicas
+      Creada     : 06-06-2026
+      Completada : 06-06-2026
+
+  * hola
+      Categoría  : Programacion
+      Creada     : 06-06-2026
+      Completada : 07-06-2026
+
+  * adios
+      Categoría  : Fisica
+      Creada     : 06-06-2026
+      Completada : 07-06-2026
+
+  * buenas
+      Categoría  : UNIX
+      Creada     : 06-06-2026
+      Completada : 07-06-2026
+
+  * ecuaciones
+      Categoría  : Matematicas
+      Creada     : 07-06-2026
+      Completada : 07-06-2026
+
+  * dasdadas
+      Categoría  : Matematicas
+      Creada     : 07-06-2026
+      Completada : 07-06-2026
+
+   TAREAS PENDIENTES
+────────────────────────────────────────────────────────────
+  * ensamblador
+      Categoría  : Ensamblador
+      Creada     : 07-06-2026
+      Fecha lím. : 08-06-2026
+      Días rest. : 1
+
+════════════════════════════════════════════════════════════
+  Reporte generado por LUMA Task Manager
+════════════════════════════════════════════════════════════
