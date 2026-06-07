@@ -36,7 +36,16 @@ import javax.swing.ListCellRenderer;
 import java.awt.Component;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+//las siguientes librerias son para hacer funcionar al calendario
+import java.time.YearMonth;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
+
+/*Las siguientes clases heredan de algunas librerias, que son las que gestionan los usuarios y tareas
+ * estas se guardan en un archivo binario (uno para cada usuario)
+ * */
 class Usuario implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
     private String usuario;
@@ -103,7 +112,9 @@ class Tarea implements java.io.Serializable {
     public String toString() { return titulo + " [" + getTipo() + "]"; }
 }
 
-
+/*Esta clase hereda las caracteristicas de la clase tarea, en esta cuando se intenta llamar a algun
+atributo que posea la tarea, aplica el polimorfismo para arrojar el tipo de dato que se desea, principalmente
+en la clase de tarea render*/
 class TareaPrioridad extends Tarea {
     private int    prioridad;
     private String fechaLimite;
@@ -132,7 +143,9 @@ class TareaPrioridad extends Tarea {
     }
 }
 
-
+/*la clase manejador de archivos va a ser la encargada de gestionar todo lo del archivo
+o sea, guardar tareas, cargar usuarios en un arraylist, basicamente considerarlo como 
+una de las clases mas importantes, ya que con esta se va a mostrar cada tarea de cada usuario*/
 class ManejadorArchivos {
     private static String ARCHIVO_USUARIOS = "usuarios.bin";
 
@@ -234,7 +247,7 @@ class TareaRenderer extends JLabel implements ListCellRenderer<Tarea>{
         String estado = tarea.isCompletada() ? "FINALIZADA" : "";
         
         if (tarea.isCompletada()) {
-            // Mostrar fecha de completado en lugar del tiempo restante
+            //muestra la fecha en que se completo
             String fc = tarea.getFechaCompletada();
             if (fc != null && !fc.isEmpty()) {
                 tiempo = "Completada el " + fc;
@@ -351,12 +364,530 @@ class NeonButton extends JButton {
     }
 }
 
+class PanelCalendario extends JPanel {
+    private static final long serialVersionUID = 1L;
+    private YearMonth mesActual;
+    private ArrayList<Tarea> tareas;
+    private JPanel gridDias;
+    private JLabel lblMesAnio;
+    private JPanel panelLeyenda;
+
+    /*colores asignados por categoria, principalmente se usa un mapa hash
+     * para relacionar el nombre de la materia/categoria con un color especifico*/
+    private static final Map<String, Color> COLORES_CAT = new HashMap<>();
+    static {
+        COLORES_CAT.put("Matematicas",  new Color(255, 80,  80));
+        COLORES_CAT.put("Redes",        new Color(80,  180, 255));
+        COLORES_CAT.put("Programacion", new Color(80,  255, 180));
+        COLORES_CAT.put("Ensamblador",  new Color(255, 200, 50));
+        COLORES_CAT.put("UNIX",         new Color(200, 100, 255));
+        COLORES_CAT.put("Fisica",       new Color(255, 140, 50));
+        COLORES_CAT.put("Laboratorio",  new Color(50,  230, 230));
+        COLORES_CAT.put("Español",      new Color(255, 100, 180));
+        COLORES_CAT.put("Otro",         new Color(160, 160, 160));
+    }
+
+    public static Color colorCategoria(String cat) {
+        if (cat == null) return COLORES_CAT.get("Otro");
+        return COLORES_CAT.getOrDefault(cat, COLORES_CAT.get("Otro"));
+    }
+
+    public PanelCalendario() {
+        mesActual = YearMonth.now();
+        setLayout(new java.awt.BorderLayout());
+        setOpaque(false);
+        construir();
+    }
+
+    private void construir() {
+        removeAll();
+
+        JPanel cabecera = new JPanel(null);
+        cabecera.setOpaque(false);
+        cabecera.setPreferredSize(new java.awt.Dimension(0, 42));
+
+        NeonButton btnPrev = new NeonButton("<", new Color(0,80,160), new Color(0,180,255), Color.WHITE);
+        btnPrev.setBounds(30, 5, 38, 32);
+        btnPrev.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        cabecera.add(btnPrev);
+
+        lblMesAnio = new JLabel("", SwingConstants.CENTER);
+        lblMesAnio.setBounds(80, 5, 500, 32);
+        lblMesAnio.setFont(new Font("Segoe UI", Font.BOLD, 19));
+        lblMesAnio.setForeground(new Color(0, 200, 255));
+        cabecera.add(lblMesAnio);
+
+        NeonButton btnNext = new NeonButton(">", new Color(0,80,160), new Color(0,180,255), Color.WHITE);
+        btnNext.setBounds(590, 5, 38, 32);
+        btnNext.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        cabecera.add(btnNext);
+
+        btnPrev.addActionListener(e -> { mesActual = mesActual.minusMonths(1); actualizar(); });
+        btnNext.addActionListener(e -> { mesActual = mesActual.plusMonths(1); actualizar(); });
+
+        JPanel cuerpo = new JPanel(new java.awt.BorderLayout(8, 0));
+        cuerpo.setOpaque(false);
+
+        JPanel contenedorGrid = new JPanel(new java.awt.BorderLayout());
+        contenedorGrid.setOpaque(false);
+
+        String[] dias = {"Lun","Mar","Mié","Jue","Vie","Sáb","Dom"};
+        JPanel headerDias = new JPanel(new java.awt.GridLayout(1, 7, 4, 0));
+        headerDias.setOpaque(false);
+        for (String d : dias) {
+            JLabel lbl = new JLabel(d, SwingConstants.CENTER);
+            lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            lbl.setForeground(new Color(160, 160, 200));
+            headerDias.add(lbl);
+        }
+        contenedorGrid.add(headerDias, java.awt.BorderLayout.NORTH);
+
+        gridDias = new JPanel(new java.awt.GridLayout(0, 7, 4, 4));
+        gridDias.setOpaque(false);
+        contenedorGrid.add(gridDias, java.awt.BorderLayout.CENTER);
+
+        //panel de la derecha donde se muestran las tareas, con su respectivo color
+        panelLeyenda = new JPanel();
+        panelLeyenda.setLayout(new javax.swing.BoxLayout(panelLeyenda, javax.swing.BoxLayout.Y_AXIS));
+        panelLeyenda.setOpaque(false);
+        panelLeyenda.setPreferredSize(new java.awt.Dimension(185, 0));
+        panelLeyenda.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(new Color(60,60,100), 1, true),
+            new EmptyBorder(10, 10, 10, 10)));
+
+        JLabel lblLeyTit = new JLabel("TAREAS DEL MES");
+        lblLeyTit.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblLeyTit.setForeground(new Color(0, 200, 255));
+        lblLeyTit.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panelLeyenda.add(lblLeyTit);
+        panelLeyenda.add(javax.swing.Box.createVerticalStrut(8));
+
+        cuerpo.add(contenedorGrid, java.awt.BorderLayout.CENTER);
+        cuerpo.add(panelLeyenda,   java.awt.BorderLayout.EAST);
+
+        add(cabecera, java.awt.BorderLayout.NORTH);
+        add(cuerpo,   java.awt.BorderLayout.CENTER);
+
+        actualizar();
+    }
+
+    public void setTareas(ArrayList<Tarea> tareas) {
+        this.tareas = tareas;
+        actualizar();
+    }
+
+    private void actualizar() {
+        java.time.format.DateTimeFormatter fmtMes =
+            java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", new java.util.Locale("es","MX"));
+        lblMesAnio.setText(mesActual.format(fmtMes).toUpperCase());
+
+        /*En esta seccion utiliza un mapa hash utilizando como llave el dia que se le asingo de entrega a la tarea,
+         en base a eso, puede acomodarlas dentro del calendario*/
+        java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy");
+        Map<LocalDate, ArrayList<Tarea>> mapa = new HashMap<>();
+        if (tareas != null) {
+            for (Tarea t : tareas) {
+            	if(t.isCompletada()) {
+            		continue;
+            	}
+                if (t instanceof TareaPrioridad) {
+                    String fl = ((TareaPrioridad) t).getFechaLimite();
+                    if (fl != null && !fl.isEmpty()) {
+                        try {
+                            LocalDate fecha = LocalDate.parse(fl, fmt);
+                            mapa.computeIfAbsent(fecha, k -> new ArrayList<>()).add(t);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        }
+
+        gridDias.removeAll();
+        LocalDate primeroDiaMes = mesActual.atDay(1);
+        int diaSemanaInicio = primeroDiaMes.getDayOfWeek().getValue(); //el 1 representa el lunes
+        for (int i = 1; i < diaSemanaInicio; i++) gridDias.add(new JLabel(""));
+
+        LocalDate hoy = LocalDate.now();
+        int totalDias = mesActual.lengthOfMonth();
+        for (int d = 1; d <= totalDias; d++) {
+            LocalDate fecha = mesActual.atDay(d);
+            ArrayList<Tarea> tareasDelDia = mapa.getOrDefault(fecha, new ArrayList<>());
+            JPanel celda = crearCelda(d, fecha.equals(hoy), tareasDelDia);
+            gridDias.add(celda);
+        }
+        gridDias.revalidate();
+        gridDias.repaint();
+
+        panelLeyenda.removeAll();
+        JLabel lblLeyTit = new JLabel("TAREAS DEL MES");
+        lblLeyTit.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblLeyTit.setForeground(new Color(0, 200, 255));
+        lblLeyTit.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panelLeyenda.add(lblLeyTit);
+        panelLeyenda.add(javax.swing.Box.createVerticalStrut(8));
+
+        //hace una lista de todas las tareas del mes
+        for (Map.Entry<LocalDate, ArrayList<Tarea>> e : mapa.entrySet()) {
+            if (e.getKey().getYear() == mesActual.getYear() &&
+                e.getKey().getMonthValue() == mesActual.getMonthValue()) {
+                for (Tarea t : e.getValue()) {
+                    panelLeyenda.add(crearFilaLeyenda(t));
+                    panelLeyenda.add(javax.swing.Box.createVerticalStrut(5));
+                }
+            }
+        }
+        if (panelLeyenda.getComponentCount() <= 2) {
+            JLabel vacio = new JLabel("Sin tareas este mes");
+            vacio.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+            vacio.setForeground(new Color(120,120,150));
+            vacio.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panelLeyenda.add(vacio);
+        }
+        panelLeyenda.revalidate();
+        panelLeyenda.repaint();
+    }
+
+    private JPanel crearFilaLeyenda(Tarea t) {
+        JPanel fila = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0));
+        fila.setOpaque(false);
+        fila.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 22));
+        fila.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel punto = new JLabel("●");
+        punto.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        punto.setForeground(PanelCalendario.colorCategoria(t.getCategoria()));
+        fila.add(punto);
+
+        String titulo = t.getTitulo().length() > 16 ? t.getTitulo().substring(0,14)+"…" : t.getTitulo();
+        JLabel lblTit = new JLabel(titulo);
+        lblTit.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblTit.setForeground(t.isCompletada() ? new Color(100,200,100) : new Color(220,220,240));
+        fila.add(lblTit);
+        return fila;
+    }
+
+    private JPanel crearCelda(int dia, boolean esHoy, ArrayList<Tarea> tareasDelDia) {
+        JPanel celda = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                Color fondo = esHoy ? new Color(0, 60, 100) : new Color(20, 20, 38);
+                g2.setColor(fondo);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                if (esHoy) {
+                    g2.setColor(new Color(0, 200, 255));
+                    g2.setStroke(new java.awt.BasicStroke(1.5f));
+                    g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 8, 8);
+                }
+            }
+        };
+        celda.setLayout(new java.awt.BorderLayout(0, 1));
+        celda.setOpaque(false);
+
+        JLabel numDia = new JLabel(String.valueOf(dia), SwingConstants.CENTER);
+        numDia.setFont(new Font("Segoe UI", esHoy ? Font.BOLD : Font.PLAIN, 12));
+        numDia.setForeground(esHoy ? new Color(0,220,255) : new Color(200,200,220));
+        celda.add(numDia, java.awt.BorderLayout.NORTH);
+
+        //esta parte marca unas franjas de colores para distinguir una tarea de la otra, si es que hay varias en un solo dia
+        if (!tareasDelDia.isEmpty()) {
+            JPanel franjas = new JPanel(new java.awt.GridLayout(
+                Math.min(tareasDelDia.size(), 3), 1, 0, 1));
+            franjas.setOpaque(false);
+            int mostrar = Math.min(tareasDelDia.size(), 3);
+            for (int i = 0; i < mostrar; i++) {
+                Tarea t = tareasDelDia.get(i);
+                Color c = PanelCalendario.colorCategoria(t.getCategoria());
+                JPanel franja = new JPanel() {
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        g.setColor(c);
+                        g.fillRoundRect(0, 0, getWidth(), getHeight(), 4, 4);
+                    }
+                };
+                franja.setOpaque(false);
+                franja.setPreferredSize(new java.awt.Dimension(0, 5));
+                franja.setToolTipText(t.getTitulo() + " [" + t.getCategoria() + "]");
+                franjas.add(franja);
+            }
+            celda.add(franjas, java.awt.BorderLayout.SOUTH);
+        }
+        return celda;
+    }
+}
+
+//─── Panel Estadísticas ─────────────────────────────────────────────────────
+class PanelEstadisticas extends JPanel {
+	private static final long serialVersionUID = 1L;
+	private ArrayList<Tarea> tareas;
+	private JPanel contenido;
+	
+	public PanelEstadisticas() {
+	     setLayout(new java.awt.BorderLayout());
+	     setOpaque(false);
+	     contenido = new JPanel();
+	     contenido.setLayout(new java.awt.GridLayout(2, 3, 14, 14));
+	     contenido.setOpaque(false);
+	     contenido.setBorder(new EmptyBorder(10, 10, 10, 10));
+	     add(contenido, java.awt.BorderLayout.CENTER);
+	}
+	
+	public void setTareas(ArrayList<Tarea> tareas) {
+	     this.tareas = tareas;
+	     actualizar();
+	}
+	
+	private void actualizar() {
+	     contenido.removeAll();
+	     if (tareas == null) { contenido.revalidate(); return; }
+	
+	     int total       = tareas.size();
+	     int completadas = (int) tareas.stream().filter(Tarea::isCompletada).count();
+	     int pendientes  = total - completadas;
+	
+	     // Contar por categoría
+	     Map<String, Long> porCat = new java.util.TreeMap<>();
+	     for (Tarea t : tareas) {
+	         String cat = t.getCategoria() != null ? t.getCategoria() : "Otro";
+	         porCat.merge(cat, 1L, Long::sum);
+	     }
+	     String catMayor = porCat.entrySet().stream()
+	         .max(Map.Entry.comparingByValue())
+	         .map(Map.Entry::getKey).orElse("—");
+	
+	     // Tareas vencidas (fechaLimite < hoy y no completadas)
+	     LocalDate hoy = LocalDate.now();
+	     java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy");
+	     long vencidas = tareas.stream().filter(t -> !t.isCompletada() && t instanceof TareaPrioridad)
+	         .filter(t -> {
+	             try {
+	                 String fl = ((TareaPrioridad) t).getFechaLimite();
+	                 return fl != null && !fl.isEmpty() && LocalDate.parse(fl, fmt).isBefore(hoy);
+	             } catch (Exception e) { return false; }
+	         }).count();
+	
+	     double pct = total == 0 ? 0 : (completadas * 100.0 / total);
+	
+	     contenido.add(tarjetaStat("TOTAL TAREAS",    String.valueOf(total),      new Color(0,180,255)));
+	     contenido.add(tarjetaStat("COMPLETADAS",      String.valueOf(completadas), new Color(0,220,120)));
+	     contenido.add(tarjetaStat("PENDIENTES",       String.valueOf(pendientes),  new Color(255,200,50)));
+	     contenido.add(tarjetaStat("VENCIDAS",         String.valueOf(vencidas),    new Color(255,70,70)));
+	     contenido.add(tarjetaStat("RENDIMIENTO",      String.format("%.1f%%", pct),new Color(180,100,255)));
+	     contenido.add(tarjetaStat("CATEGORIA TOP",    catMayor,                   new Color(255,140,50)));
+	
+	     contenido.revalidate();
+	     contenido.repaint();
+	}
+	
+	private JPanel tarjetaStat(String titulo, String valor, Color acento) {
+	     JPanel card = new JPanel(null) {
+	         @Override
+	         protected void paintComponent(Graphics g) {
+	             Graphics2D g2 = (Graphics2D) g;
+	             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+	             g2.setColor(new Color(18, 18, 35));
+	             g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+	             g2.setColor(acento);
+	             g2.setStroke(new java.awt.BasicStroke(1.5f));
+	             g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 16, 16);
+	             // barra inferior decorativa
+	             g2.setColor(acento);
+	             g2.fillRoundRect(16, getHeight()-6, getWidth()-32, 4, 4, 4);
+	         }
+	     };
+	     card.setOpaque(false);
+	
+	     JLabel lblValor = new JLabel(valor, SwingConstants.CENTER);
+	     lblValor.setFont(new Font("Segoe UI", Font.BOLD, 34));
+	     lblValor.setForeground(acento);
+	     lblValor.setBounds(0, 60, 999, 44);
+	     card.add(lblValor);
+	
+	     JLabel lblTit = new JLabel(titulo, SwingConstants.CENTER);
+	     lblTit.setFont(new Font("Segoe UI", Font.BOLD, 12));
+	     lblTit.setForeground(new Color(160,160,200));
+	     lblTit.setBounds(0, 106, 999, 22);
+	     card.add(lblTit);
+	
+	     // Override para que los labels ocupen todo el ancho
+	     card.addComponentListener(new java.awt.event.ComponentAdapter() {
+	         @Override public void componentResized(java.awt.event.ComponentEvent e) {
+	             int w = card.getWidth();
+	             lblValor.setBounds(0, 60, w, 44);
+	             lblTit.setBounds(0, 106, w, 22);
+	         }
+	     });
+	     return card;
+	}
+}
+
+//─── Panel Reporte ──────────────────────────────────────────────────────────
+class PanelReporte extends JPanel {
+	private static final long serialVersionUID = 1L;
+	private ArrayList<Tarea> tareas;
+	private Usuario usuario;
+	private javax.swing.JTextArea areaPreview;
+	private JLabel lblEstado;
+	
+	private Color azulNeon  = new Color(0, 200, 255);
+	private Color verdeNeon = new Color(0, 220, 120);
+	private Color bgDark    = new Color(10, 10, 20);
+	private Color textoBlanco = new Color(230, 230, 240);
+	private Color textoGris   = new Color(160, 160, 180);
+	private Color bordeSuave  = new Color(60, 60, 100);
+
+	 public PanelReporte() {
+	     setLayout(new java.awt.BorderLayout(0, 10));
+	     setOpaque(false);
+	     construir();
+	 }
+	
+	 private void construir() {
+	     // ── Título ──
+	     JLabel titulo = new JLabel("GENERAR REPORTE", SwingConstants.CENTER);
+	     titulo.setFont(new Font("Segoe UI", Font.BOLD, 22));
+	     titulo.setForeground(azulNeon);
+	     titulo.setBorder(new EmptyBorder(8, 0, 4, 0));
+	     add(titulo, java.awt.BorderLayout.NORTH);
+	
+	     // ── Preview ──
+	     areaPreview = new javax.swing.JTextArea();
+	     areaPreview.setEditable(false);
+	     areaPreview.setFont(new Font("Consolas", Font.PLAIN, 13));
+	     areaPreview.setBackground(new Color(14, 14, 28));
+	     areaPreview.setForeground(textoBlanco);
+	     areaPreview.setCaretColor(azulNeon);
+	     areaPreview.setBorder(new EmptyBorder(10, 14, 10, 14));
+	     areaPreview.setText("  Presiona «PREVISUALIZAR» para ver el reporte antes de exportar.");
+	
+	     JScrollPane scrollPreview = new JScrollPane(areaPreview);
+	     scrollPreview.setBorder(new LineBorder(bordeSuave, 1, true));
+	     scrollPreview.getViewport().setBackground(new Color(14, 14, 28));
+	     add(scrollPreview, java.awt.BorderLayout.CENTER);
+	
+	     // ── Botones ──
+	     JPanel barraBot = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 18, 6));
+	     barraBot.setOpaque(false);
+	
+	     NeonButton btnPreview = new NeonButton(" PREVISUALIZAR ", new Color(0,80,160), azulNeon, textoBlanco);
+	     btnPreview.setFont(new Font("Segoe UI", Font.BOLD, 14));
+	     btnPreview.setPreferredSize(new java.awt.Dimension(200, 42));
+	     btnPreview.addActionListener(e -> previsualizarReporte());
+	     barraBot.add(btnPreview);
+	
+	     NeonButton btnExportar = new NeonButton(" EXPORTAR .TXT ", new Color(0,100,60), verdeNeon, textoBlanco);
+	     btnExportar.setFont(new Font("Segoe UI", Font.BOLD, 14));
+	     btnExportar.setPreferredSize(new java.awt.Dimension(200, 42));
+	     btnExportar.addActionListener(e -> exportarReporte());
+	     barraBot.add(btnExportar);
+	
+	     lblEstado = new JLabel("", SwingConstants.CENTER);
+	     lblEstado.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+	     lblEstado.setForeground(verdeNeon);
+	
+	     JPanel sur = new JPanel(new java.awt.BorderLayout());
+	     sur.setOpaque(false);
+	     sur.add(barraBot, java.awt.BorderLayout.NORTH);
+	     sur.add(lblEstado, java.awt.BorderLayout.SOUTH);
+	     add(sur, java.awt.BorderLayout.SOUTH);
+	 }
+	
+	 public void setDatos(ArrayList<Tarea> tareas, Usuario usuario) {
+	     this.tareas  = tareas;
+	     this.usuario = usuario;
+	     areaPreview.setText("  Presiona «PREVISUALIZAR» para ver el reporte antes de exportar.");
+	     lblEstado.setText("");
+	 }
+	
+	 private String generarTextoReporte() {
+	     if (tareas == null) return "(Sin datos de tareas)";
+	     StringBuilder sb = new StringBuilder();
+	     String sep = "═".repeat(60);
+	     String sep2 = "─".repeat(60);
+	
+	     sb.append(sep).append("\n");
+	     sb.append("  REPORTE LUMA - GESTOR DE TAREAS\n");
+	     if (usuario != null) sb.append("  Usuario : ").append(usuario.getNombre())
+	                             .append(" (@").append(usuario.getUsuario()).append(")\n");
+	     sb.append("  Fecha   : ").append(LocalDate.now()
+	         .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))).append("\n");
+	     sb.append(sep).append("\n\n");
+	
+	     long completadas = tareas.stream().filter(Tarea::isCompletada).count();
+	     long pendientes  = tareas.size() - completadas;
+	     sb.append("  RESUMEN GENERAL\n").append(sep2).append("\n");
+	     sb.append(String.format("  Total de tareas  : %d%n", tareas.size()));
+	     sb.append(String.format("  Completadas      : %d%n", completadas));
+	     sb.append(String.format("  Pendientes       : %d%n", pendientes));
+	     double pct = tareas.isEmpty() ? 0 : completadas * 100.0 / tareas.size();
+	     sb.append(String.format("  Rendimiento      : %.1f%%%n%n", pct));
+	
+	     sb.append(" TAREAS COMPLETADAS\n").append(sep2).append("\n");
+	     tareas.stream().filter(Tarea::isCompletada).forEach(t -> {
+	         sb.append(String.format("  * %s%n", t.getTitulo()));
+	         sb.append(String.format("      Categoría  : %s%n", t.getCategoria()));
+	         sb.append(String.format("      Creada     : %s%n", t.getFechaCreacion()));
+	         if (t.getFechaCompletada() != null)
+	             sb.append(String.format("      Completada : %s%n", t.getFechaCompletada()));
+	         sb.append("\n");
+	     });
+	     if (completadas == 0) sb.append("  Ninguna tarea completada \n\n");
+	
+	     sb.append("   TAREAS PENDIENTES\n").append(sep2).append("\n");
+	     tareas.stream().filter(t -> !t.isCompletada()).forEach(t -> {
+	         sb.append(String.format("  * %s%n", t.getTitulo()));
+	         sb.append(String.format("      Categoría  : %s%n", t.getCategoria()));
+	         sb.append(String.format("      Creada     : %s%n", t.getFechaCreacion()));
+	         if (t instanceof TareaPrioridad) {
+	             String fl = ((TareaPrioridad) t).getFechaLimite();
+	             if (fl != null && !fl.isEmpty()) {
+	                 sb.append(String.format("      Fecha lím. : %s%n", fl));
+	                 try {
+	                     java.time.format.DateTimeFormatter fmt =
+	                         java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy");
+	                     long dias = ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(fl, fmt));
+	                     sb.append(String.format("      Días rest. : %d%n", dias));
+	                 } catch (Exception ignored) {}
+	             }
+	         }
+	         sb.append("\n");
+	     });
+	     if (pendientes == 0) sb.append("  Todas las tareas han sido completadas \n\n");
+	
+	     sb.append(sep).append("\n");
+	     sb.append("  Reporte generado por LUMA Task Manager\n");
+	     sb.append(sep).append("\n");
+	     return sb.toString();
+	 }
+	
+	 private void previsualizarReporte() {
+	     areaPreview.setText(generarTextoReporte());
+	     areaPreview.setCaretPosition(0);
+	     lblEstado.setText("");
+	 }
+	
+	 private void exportarReporte() {
+	     String texto = generarTextoReporte();
+	     String nombreArchivo = "reporte_luma_" + usuario.getUsuario() + "_" + LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("ddMMyyyy")) + ".txt";
+	     try (java.io.PrintWriter pw = new java.io.PrintWriter(
+	         new java.io.FileWriter(nombreArchivo, java.nio.charset.StandardCharsets.UTF_8))) {
+	         pw.print(texto);
+	         lblEstado.setForeground(new Color(0, 220, 120));
+	         lblEstado.setText("Reporte guardado como: " + nombreArchivo);
+	         areaPreview.setText(texto);
+	         areaPreview.setCaretPosition(0);
+	     } catch (Exception ex) {
+	         lblEstado.setForeground(new Color(255, 70, 70));
+	         lblEstado.setText("Error al guardar: " + ex.getMessage());
+	     }
+	 }
+}
 
 public class lumaScreen extends JFrame {
 
     private static final long serialVersionUID = 1L;
 
-    // Paleta de colores
     private Color bgDark     = new Color(10, 10, 20);
     private Color bgMedium   = new Color(15, 15, 30);
     private Color azulNeon   = new Color(0, 200, 255);
@@ -369,31 +900,40 @@ public class lumaScreen extends JFrame {
     private Color verdeNeon  = new Color(0, 220, 120);
     private Color verdeOscuro = new Color(0, 120, 60);
 
-    // Layout y paneles
+    //layouts y paneles, tambien se definen variables para los elementos de la pantalla
     private CardLayout cardLayout;
     private JPanel mainPanel, loginPanel, registroPanel, appPanel;
 
-    // Login
     private JTextField    textUsuario;
     private JPasswordField passwordField;
 
-    // Registro
+    //registro
     private JTextField     regUsuario, regNombre;
     private JPasswordField regPassword;
 
-    // App
+    //app (el que agrega las tareas)
     private JLabel             tituloApp, subtituloApp;
     private RoundedPanel       panelTareas;
     private NeonButton         btnAgregarTarea, btnCerrarSesion;
     private JList<Tarea>       listaTareas;
     private DefaultListModel<Tarea> modeloTareas;
+    
+    //calendario 
+    private CardLayout vistasLayout;
+    private JPanel     vistasPanel;
+    private PanelCalendario   panelCalendario;
+    
+    //estadisticas
+    private PanelEstadisticas panelEstadisticas;
+    //reporte
+    private PanelReporte      panelReporte;
 
-    // Filtros
+    //filtros
     private JComboBox<String> comboCategoria;
     private JTextField        txtFiltroFecha;
     private NeonButton        btnFiltrar, btnLimpiarFiltro,btnEliminarTarea;
 
-    // Dimensiones
+    //tamaño de pantalla
     private final int VENTANA_ANCHO = 1060;
     private final int VENTANA_ALTO  = 700;
 
@@ -401,7 +941,7 @@ public class lumaScreen extends JFrame {
     private Usuario         actual;
     private ArrayList<Tarea> tareas;
 
-    // Categorías predefinidas
+    //categorias de tareas
     private static final String[] CATEGORIAS = {
         "Todas", "Matematicas", "Redes", "Programacion", "Ensamblador", "UNIX", "Fisica", "Laboratorio", "Español", "Finalizadas" };
 
@@ -495,7 +1035,7 @@ public class lumaScreen extends JFrame {
         loginBtn.setFont(new Font("Segoe UI", Font.BOLD, 18));
         cardLogin.add(loginBtn);
 
-        JLabel lblRegistro = new JLabel("¿No tienes cuenta? Regístrate");
+        JLabel lblRegistro = new JLabel("¿No tienes cuenta? Registrate");
         lblRegistro.setBounds(0, 560, VENTANA_ANCHO, 30);
         lblRegistro.setHorizontalAlignment(SwingConstants.CENTER);
         lblRegistro.setFont(new Font("Segoe UI", Font.PLAIN, 16));
@@ -588,24 +1128,68 @@ public class lumaScreen extends JFrame {
         appPanel.setLayout(null);
 
         tituloApp = new JLabel("MIS TAREAS");
-        tituloApp.setBounds(0, 25, VENTANA_ANCHO, 60);
+        tituloApp.setBounds(0, 12, VENTANA_ANCHO, 44);
         tituloApp.setHorizontalAlignment(SwingConstants.CENTER);
-        tituloApp.setFont(new Font("Segoe UI", Font.BOLD, 44));
+        tituloApp.setFont(new Font("Segoe UI", Font.BOLD, 36));
         tituloApp.setForeground(azulNeon);
         appPanel.add(tituloApp);
 
         subtituloApp = new JLabel("Bienvenido de vuelta");
-        subtituloApp.setBounds(0, 85, VENTANA_ANCHO, 28);
+        subtituloApp.setBounds(0, 56, VENTANA_ANCHO, 24);
         subtituloApp.setHorizontalAlignment(SwingConstants.CENTER);
-        subtituloApp.setFont(new Font("Segoe UI", Font.PLAIN, 17));
+        subtituloApp.setFont(new Font("Segoe UI", Font.PLAIN, 15));
         subtituloApp.setForeground(textoGris);
         appPanel.add(subtituloApp);
 
+        //en esta seccion se muestran las opciones de navegación para las 4 ventanas
+        String[] tabs = {" TAREAS ", " CALENDARIO ", " ESTADÍSTICAS ", " REPORTE "};
+        Color[] tabColores = {azulNeon, new Color(255,180,50), new Color(180,100,255), verdeNeon};
+        Color[] tabOscuros = {azulOscuro, new Color(140,90,0), new Color(80,0,160), verdeOscuro};
+        NeonButton[] btnTabs = new NeonButton[4];
+        JPanel navBar = new JPanel(new java.awt.GridLayout(1, 4, 6, 0));
+        navBar.setOpaque(false);
+        navBar.setBounds(40, 86, 980, 34);
+        for (int i = 0; i < tabs.length; i++) {
+            btnTabs[i] = new NeonButton(tabs[i], tabOscuros[i], tabColores[i], textoBlanco);
+            btnTabs[i].setFont(new Font("Segoe UI", Font.BOLD, 12));
+            navBar.add(btnTabs[i]);
+        }
+        appPanel.add(navBar);
+
+        //panel de vistas
+        vistasLayout = new CardLayout();
+        vistasPanel  = new JPanel(vistasLayout);
+        vistasPanel.setOpaque(false);
+        vistasPanel.setBounds(40, 126, 980, 508);
+        appPanel.add(vistasPanel);
+
+        //vista de las tareas
+        JPanel vistaTareas = new JPanel(null);
+        vistaTareas.setOpaque(false);
+        
+        //vista del calendario
+        panelCalendario = new PanelCalendario();
+        panelCalendario.setBorder(new EmptyBorder(6, 6, 6, 6));
+        
+        //estadisticas
+        panelEstadisticas = new PanelEstadisticas();
+        panelEstadisticas.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        //reporte
+        panelReporte = new PanelReporte();
+        panelReporte.setBorder(new EmptyBorder(8, 10, 8, 10));
+		//esta parte es la que visualmente muestra el contenido de cada panel
+        vistasPanel.add(vistaTareas,       "Tareas");
+        vistasPanel.add(panelCalendario,   "Calendario");
+        vistasPanel.add(panelEstadisticas, "Estadisticas");
+        vistasPanel.add(panelReporte,      "Reporte");
+        vistasLayout.show(vistasPanel, "Tareas");
+
         //panel de filtros
         RoundedPanel panelFiltros = new RoundedPanel(verdeNeon);
-        panelFiltros.setBounds(40,122,980,60);
+        panelFiltros.setBounds(0, 0, 980, 60);
         panelFiltros.setLayout(null);
-        appPanel.add(panelFiltros);
+        vistaTareas.add(panelFiltros);
 
         JLabel lblCat = new JLabel("Categoría:");
         lblCat.setBounds(15, 17, 90, 25);
@@ -653,19 +1237,16 @@ public class lumaScreen extends JFrame {
         panelFiltros.add(btnEliminarTarea);
         
         NeonButton btnModificarTarea = new NeonButton("MODIFICAR", azulOscuro, azulNeon, textoBlanco);
-        btnModificarTarea.setBounds(900, 12, 110, 36);
+        btnModificarTarea.setBounds(900, 12, 75, 36);
         btnModificarTarea.setFont(new Font("Segoe UI", Font.BOLD, 12));
         panelFiltros.add(btnModificarTarea);
         
         btnModificarTarea.addActionListener(e -> modificarTarea());
-        
 
-
-        // ---- PANEL DE TAREAS ----
         panelTareas = new RoundedPanel(azulNeon);
-        panelTareas.setBounds(80, 200, 900, 340);
+        panelTareas.setBounds(0, 68, 980, 340);
         panelTareas.setLayout(null);
-        appPanel.add(panelTareas);
+        vistaTareas.add(panelTareas);
 
         modeloTareas = new DefaultListModel<>();
         listaTareas  = new JList<>(modeloTareas);
@@ -677,39 +1258,46 @@ public class lumaScreen extends JFrame {
         listaTareas.setFixedCellHeight(36);
 
         JScrollPane scroll = new JScrollPane(listaTareas);
-        scroll.setBounds(20, 20, 860, 300);
+        scroll.setBounds(20, 20, 940, 300);
         scroll.getViewport().setBackground(new Color(15, 15, 30));
         scroll.setBorder(BorderFactory.createLineBorder(bordeSuave, 1));
         panelTareas.add(scroll);
 
-        // ---- BOTONES INFERIORES ----
         btnAgregarTarea = new NeonButton("+ NUEVA TAREA", azulOscuro, azulNeon, textoBlanco);
-        btnAgregarTarea.setBounds(280, 560, 500, 45);
+        btnAgregarTarea.setBounds(240, 420, 500, 45);
         btnAgregarTarea.setFont(new Font("Segoe UI", Font.BOLD, 19));
-        appPanel.add(btnAgregarTarea);
+        vistaTareas.add(btnAgregarTarea);
 
         btnCerrarSesion = new NeonButton("CERRAR SESIÓN", rojoOscuro, rojoNeon, textoBlanco);
-        btnCerrarSesion.setBounds(380, 615, 300, 35);
+        btnCerrarSesion.setBounds(340, 472, 300, 35);
         btnCerrarSesion.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        appPanel.add(btnCerrarSesion);
+        vistaTareas.add(btnCerrarSesion);
+       
+        //clics de los botones de cada panel
+        btnTabs[0].addActionListener(e -> vistasLayout.show(vistasPanel, "Tareas"));
+        btnTabs[1].addActionListener(e -> {
+            panelCalendario.setTareas(tareas);
+            vistasLayout.show(vistasPanel, "Calendario");
+        });
         
-        
-        
-        //evento de que cuando se hace clic sobre la tarea se muestran detalles
+        btnTabs[2].addActionListener(e -> {
+            panelEstadisticas.setTareas(tareas);
+            vistasLayout.show(vistasPanel, "Estadisticas");
+        });
+        btnTabs[3].addActionListener(e -> {
+            panelReporte.setDatos(tareas, actual);
+            vistasLayout.show(vistasPanel, "Reporte");
+        });
         listaTareas.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
-                    Tarea seleccionada =
-                            listaTareas.getSelectedValue();
-                    if (seleccionada != null) {
-                        mostrarDetallesTarea(seleccionada);
-                    }
+                    Tarea seleccionada = listaTareas.getSelectedValue();
+                    if (seleccionada != null) mostrarDetallesTarea(seleccionada);
                 }
             }
         });
 
-        // ---- EVENTOS DEL PANEL APP ----
         btnAgregarTarea.addActionListener(e -> agregarTarea());
 
         btnCerrarSesion.addActionListener(e -> {
@@ -734,9 +1322,7 @@ public class lumaScreen extends JFrame {
             actualizarListaTareas();
         });
         
-        btnEliminarTarea.addActionListener(
-        	    e -> eliminarTarea()
-        	);
+        btnEliminarTarea.addActionListener(e -> eliminarTarea());
     }
 
     private void estilizarCampo(javax.swing.text.JTextComponent campo, Color acent) {
@@ -785,7 +1371,7 @@ public class lumaScreen extends JFrame {
                 tarea.setCompletada(true);
                 ManejadorArchivos.guardarTareas(tareas, actual.getArchivo());
                 actualizarListaTareas();
-                JOptionPane.showMessageDialog(this, "¡Tarea finalizada! ✓");
+                JOptionPane.showMessageDialog(this, "¡Tarea finalizada!");
             }
         } else if (opcion == 1) {
             //modificar tarea
@@ -808,7 +1394,7 @@ public class lumaScreen extends JFrame {
         if (seleccionada instanceof TareaPrioridad) {
             TareaPrioridad tp = (TareaPrioridad) seleccionada;
             nuevaFechaLimite = JOptionPane.showInputDialog(this,
-                "Nueva fecha límite (dd-MM-yyyy):", tp.getFechaLimite());
+                "Nueva fecha limite (dd-MM-yyyy):", tp.getFechaLimite());
             if (nuevaFechaLimite == null) nuevaFechaLimite = tp.getFechaLimite();
         }
         seleccionada.setTitulo(nuevoTitulo.trim());
@@ -831,9 +1417,9 @@ public class lumaScreen extends JFrame {
         cardLayout.show(mainPanel, nombrePanel);
     }
 
-    // ==========================================
-    // LOGIN
-    // ==========================================
+    /*todo el metodo de login valida que el usuario y contraseña sean correctos a los introducidos
+    incluso, valida que los campos hayan sido rellenados, una vez completado el login, pasa al siguiente frame,
+    el cual, es todo el gestor de tareas como tal*/
     public void login() {
         String usuario  = textUsuario.getText().trim();
         String password = new String(passwordField.getPassword());
@@ -881,11 +1467,11 @@ public class lumaScreen extends JFrame {
         boolean filtrarFinalizadas = "Finalizadas".equals(catSeleccionada);
         for (Tarea t : tareas) {
             if (filtrarFinalizadas) {
-                // Mostrar solo tareas completadas
+                //muestra tareas completadas
                 if (t.isCompletada()) modeloTareas.addElement(t);
                 continue;
             }
-            // Para el resto de filtros, excluir completadas
+            //con los demas filtros no muestra las completadas
             if (t.isCompletada()) continue;
             boolean pasaCat   = catSeleccionada == null
                              || catSeleccionada.equals("Todas")
@@ -920,6 +1506,7 @@ public class lumaScreen extends JFrame {
         );
         if (opc == JOptionPane.YES_OPTION) {
             tareas.remove(seleccionada);
+            ManejadorArchivos.guardarTareas(tareas, actual.getArchivo());
             actualizarListaTareas();
             JOptionPane.showMessageDialog(this,"Tarea eliminada");
         }
@@ -932,11 +1519,11 @@ public class lumaScreen extends JFrame {
         String descripcion = JOptionPane.showInputDialog(this, "Descripción:");
         if (descripcion == null) descripcion = "";
 
-        // Selector de categoría mediante lista
+        //este joptionPane contiene las cateogrias de tareas
         String categoria = (String) JOptionPane.showInputDialog(
             this, "Selecciona una categoría:", "Categoría",
             JOptionPane.PLAIN_MESSAGE, null,
-            new String[]{"Matematicas", "Redes", "Programacion", "Ensamblador", "UNIX", "Fisica", "Laboratorio", "Español" }, "Categoria");
+            new String[]{"Matematicas", "Redes", "Programacion", "Ensamblador", "UNIX", "Fisica", "Laboratorio", "Español" }, "Categoría");
         if (categoria == null) categoria = "Otro";
 
         String fechaLimite = JOptionPane.showInputDialog(this,
@@ -988,7 +1575,7 @@ public class lumaScreen extends JFrame {
         String nuevaFechaLimite = "";
         if (seleccionada instanceof TareaPrioridad) {
         	TareaPrioridad tp = (TareaPrioridad) seleccionada;
-            nuevaFechaLimite = JOptionPane.showInputDialog(this, "Nueva fecha límite (dd-MM-yyyy):", tp.getFechaLimite());
+            nuevaFechaLimite = JOptionPane.showInputDialog(this, "Nueva fecha limite (dd-MM-yyyy):", tp.getFechaLimite());
             if (nuevaFechaLimite == null) nuevaFechaLimite = tp.getFechaLimite();
         }
         
