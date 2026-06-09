@@ -32,6 +32,7 @@ import javax.swing.JComboBox;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
 import javax.swing.ListCellRenderer;
 import java.awt.Component;
 import java.time.LocalDate;
@@ -118,28 +119,46 @@ en la clase de tarea render*/
 class TareaPrioridad extends Tarea {
     private int    prioridad;
     private String fechaLimite;
+    /** Hora de vencimiento en formato HH:mm. Puede estar vacía si no aplica. */
+    private String horaLimite;
 
     public TareaPrioridad(String titulo, String descripcion, String categoria,
                           int prioridad, String fechaLimite) {
-        super(titulo, descripcion, categoria);  
+        super(titulo, descripcion, categoria);
         this.prioridad   = prioridad;
         this.fechaLimite = fechaLimite;
+        this.horaLimite  = "";
+    }
+
+    /**
+     * Constructor completo que incluye hora de vencimiento.
+     * @param horaLimite hora en formato HH:mm, o cadena vacía si no aplica
+     */
+    public TareaPrioridad(String titulo, String descripcion, String categoria,
+                          int prioridad, String fechaLimite, String horaLimite) {
+        super(titulo, descripcion, categoria);
+        this.prioridad   = prioridad;
+        this.fechaLimite = fechaLimite;
+        this.horaLimite  = (horaLimite != null) ? horaLimite : "";
     }
 
     @Override
     public String getTipo() { return "Tarea Prioritaria"; }
 
-    public int    getPrioridad()   { return prioridad; }
+    public int    getPrioridad()    { return prioridad; }
     public void   setPrioridad(int p) { this.prioridad = p; }
-    public String getFechaLimite() { return fechaLimite; }
+    public String getFechaLimite()  { return fechaLimite; }
     public void   setFechaLimite(String f) { this.fechaLimite = f; }
+    public String getHoraLimite()   { return horaLimite; }
+    public void   setHoraLimite(String h)  { this.horaLimite = (h != null) ? h : ""; }
 
     @Override
     public String toString() {
-        String cat  = (categoria  != null && !categoria.isEmpty())  ? " | Cat: " + categoria  : "";
-        String fLim = (fechaLimite != null && !fechaLimite.isEmpty()) ? " | Límite: " + fechaLimite : "";
+        String cat    = (categoria   != null && !categoria.isEmpty())   ? " | Cat: "    + categoria   : "";
+        String fLim   = (fechaLimite != null && !fechaLimite.isEmpty()) ? " | Límite: " + fechaLimite : "";
+        String hLim   = (horaLimite  != null && !horaLimite.isEmpty())  ? " " + horaLimite            : "";
         String estado = completada ? " ✓ FINALIZADA" : "";
-        return titulo + " [" + getTipo() + "]" + cat + fLim + estado;
+        return titulo + " [" + getTipo() + "]" + cat + fLim + hLim + estado;
     }
 }
 
@@ -255,14 +274,17 @@ class TareaRenderer extends JLabel implements ListCellRenderer<Tarea>{
                 tiempo = "Completada";
             }
         } else if (tarea instanceof TareaPrioridad) {
-            try{
-                String fechaTexto = ((TareaPrioridad) tarea).getFechaLimite();
-                java.time.format.DateTimeFormatter formato = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy");
-                LocalDate limite = LocalDate.parse(fechaTexto, formato);
+            try {
+                TareaPrioridad tp = (TareaPrioridad) tarea;
+                String fechaTexto = tp.getFechaLimite();
+                String horaTexto  = tp.getHoraLimite();
+                java.time.format.DateTimeFormatter fmtFecha = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy");
+                LocalDate limite = LocalDate.parse(fechaTexto, fmtFecha);
                 long dias = ChronoUnit.DAYS.between(LocalDate.now(), limite);
-                tiempo = fechaTexto + " (" + dias + " días)";
-            }
-            catch(Exception e) {
+                // Muestra "dd-MM-yyyy HH:mm (N días)" si tiene hora, o solo fecha si no
+                String horaStr = (horaTexto != null && !horaTexto.isEmpty()) ? " " + horaTexto : "";
+                tiempo = fechaTexto + horaStr + " (" + dias + " día(s))";
+            } catch (Exception e) {
                 tiempo = "";
             }
         }
@@ -286,18 +308,24 @@ class TareaRenderer extends JLabel implements ListCellRenderer<Tarea>{
             colorEstado = new Color(100, 255, 100);
         } else if (tarea instanceof TareaPrioridad) {
             try {
-                String fechaTexto = ((TareaPrioridad)tarea).getFechaLimite();
-                java.time.format.DateTimeFormatter formato = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy");
-                LocalDate limite = LocalDate.parse(fechaTexto, formato);
-                long dias = ChronoUnit.DAYS.between(LocalDate.now(), limite);
-                if (dias <= 2) {
-                    colorTiempo = Color.RED;
+                TareaPrioridad tp2 = (TareaPrioridad) tarea;
+                String fechaTexto2 = tp2.getFechaLimite();
+                String horaTexto2  = tp2.getHoraLimite();
+                java.time.format.DateTimeFormatter fmtF2 = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy");
+                LocalDate limiteDate = LocalDate.parse(fechaTexto2, fmtF2);
+                long dias2 = ChronoUnit.DAYS.between(LocalDate.now(), limiteDate);
+                // Si tiene hora, afinar el color según minutos restantes
+                if (horaTexto2 != null && !horaTexto2.isEmpty() && dias2 == 0) {
+                    java.time.format.DateTimeFormatter fmtDT = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+                    LocalDateTime limDT = LocalDateTime.parse(fechaTexto2 + " " + horaTexto2, fmtDT);
+                    long minutos = java.time.temporal.ChronoUnit.MINUTES.between(LocalDateTime.now(), limDT);
+                    colorTiempo = (minutos <= 0) ? Color.RED : (minutos <= 60 ? new Color(255,140,0) : Color.YELLOW);
+                } else {
+                    if (dias2 < 0)       colorTiempo = Color.RED;
+                    else if (dias2 <= 2) colorTiempo = Color.RED;
+                    else if (dias2 <= 7) colorTiempo = Color.YELLOW;
                 }
-                else if (dias <= 7) {
-                    colorTiempo = Color.YELLOW;
-                }
-            }
-            catch(Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
@@ -937,7 +965,34 @@ public class lumaScreen extends JFrame {
     private final int VENTANA_ANCHO = 1060;
     private final int VENTANA_ALTO  = 700;
 
-   
+    /** Label que muestra el reloj en tiempo real en la pantalla principal */
+    private JLabel lblReloj;
+
+    /**
+     * Hilo del reloj: actualiza lblReloj cada segundo con la hora actual.
+     * Se declara como campo para poder detenerlo al cerrar sesión.
+     */
+    private Thread hiloReloj;
+
+    /**
+     * Hilo de alertas: revisa cada 60 segundos si alguna TareaPrioridad
+     * está vencida o vence hoy y muestra una notificación al usuario.
+     */
+    private Thread hiloAlertas;
+
+    /**
+     * Hilo de autoguardado: guarda las tareas en disco cada 2 minutos
+     * de forma transparente, sin interrumpir al usuario.
+     */
+    private Thread hiloAutoguardado;
+
+    /**
+     * Conjunto de títulos de tareas que ya fueron notificadas.
+     * Evita repetir la misma alerta en cada ciclo del hiloAlertas.
+     * Se limpia al cerrar sesión para que la próxima sesión empiece limpia.
+     */
+    private final java.util.Set<String> tareasNotificadas = new java.util.HashSet<>();
+
     private Usuario         actual;
     private ArrayList<Tarea> tareas;
 
@@ -1141,6 +1196,14 @@ public class lumaScreen extends JFrame {
         subtituloApp.setForeground(textoGris);
         appPanel.add(subtituloApp);
 
+        // Reloj en tiempo real (actualizado por hiloReloj)
+        lblReloj = new JLabel("--:--:--");
+        lblReloj.setBounds(VENTANA_ANCHO - 160, 12, 150, 30);
+        lblReloj.setHorizontalAlignment(SwingConstants.RIGHT);
+        lblReloj.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        lblReloj.setForeground(azulNeon);
+        appPanel.add(lblReloj);
+
         //en esta seccion se muestran las opciones de navegación para las 4 ventanas
         String[] tabs = {" TAREAS ", " CALENDARIO ", " ESTADÍSTICAS ", " REPORTE "};
         Color[] tabColores = {azulNeon, new Color(255,180,50), new Color(180,100,255), verdeNeon};
@@ -1308,8 +1371,10 @@ public class lumaScreen extends JFrame {
                 if(actual != null && tareas != null) {
                     ManejadorArchivos.guardarTareas(tareas, actual.getArchivo());
                 }
+                detenerHilos(); // detiene reloj, alertas y autoguardado
                 actual = null;
                 tareas = null;
+                lblReloj.setText("--:--:--");
                 mostrarPanel("Login");
             }
         });
@@ -1441,11 +1506,194 @@ public class lumaScreen extends JFrame {
             textUsuario.setText("");
             passwordField.setText("");
             actualizarListaTareas();
+            iniciarHilos();
             mostrarPanel("App");
         } else {
             JOptionPane.showMessageDialog(this,
                 "Usuario o contraseña incorrectos.", "Error de inicio de sesión",
                 JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HILOS Y CONCURRENCIA
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Inicia los tres hilos de la aplicación al iniciar sesión:
+     *   1. hiloReloj        – actualiza el reloj cada segundo.
+     *   2. hiloAlertas      – revisa tareas vencidas/por vencer cada 60 s.
+     *   3. hiloAutoguardado – guarda tareas en disco cada 2 minutos.
+     * Todos son daemon threads: se detienen solos al cerrar la ventana.
+     */
+    private void iniciarHilos() {
+        detenerHilos(); // detiene cualquier hilo previo (por si hubo re-login)
+
+        // ── Hilo 1: Reloj en tiempo real ──────────────────────────────────
+        hiloReloj = new Thread(() -> {
+            DateTimeFormatter fmtHora = DateTimeFormatter.ofPattern("HH:mm:ss");
+            while (!Thread.currentThread().isInterrupted()) {
+                String hora = LocalDateTime.now().format(fmtHora);
+                // SwingUtilities.invokeLater garantiza que la UI
+                // se actualice siempre desde el Event Dispatch Thread (EDT)
+                javax.swing.SwingUtilities.invokeLater(() -> lblReloj.setText(hora));
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); // restaura la bandera
+                }
+            }
+        });
+        hiloReloj.setName("Hilo-Reloj");
+        hiloReloj.setDaemon(true); // muere cuando cierra la app
+        hiloReloj.start();
+
+        // ── Hilo 2: Monitor de alertas de tareas vencidas ─────────────────
+        hiloAlertas = new Thread(() -> {
+            // Primera revisión inmediata al iniciar sesión
+            revisarTareasVencidas();
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(30_000); // revisa cada 30 segundos
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                revisarTareasVencidas();
+            }
+        });
+        hiloAlertas.setName("Hilo-Alertas");
+        hiloAlertas.setDaemon(true);
+        hiloAlertas.start();
+
+        // ── Hilo 3: Autoguardado cada 2 minutos ───────────────────────────
+        hiloAutoguardado = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(120_000); // cada 2 minutos
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                // Guarda en segundo plano solo si hay sesion activa
+                if (actual != null && tareas != null) {
+                    ManejadorArchivos.guardarTareas(tareas, actual.getArchivo());
+                    System.out.println("[Autoguardado] Tareas guardadas - " +
+                        LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+                }
+            }
+        });
+        hiloAutoguardado.setName("Hilo-Autoguardado");
+        hiloAutoguardado.setDaemon(true);
+        hiloAutoguardado.start();
+    }
+
+    /**
+     * Interrumpe todos los hilos activos.
+     * Se llama al cerrar sesion o al re-loguearse para evitar hilos duplicados.
+     */
+    private void detenerHilos() {
+        if (hiloReloj        != null) hiloReloj.interrupt();
+        if (hiloAlertas      != null) hiloAlertas.interrupt();
+        if (hiloAutoguardado != null) hiloAutoguardado.interrupt();
+        tareasNotificadas.clear(); // limpia el historial al cerrar sesión
+    }
+
+    /**
+     * Revisa si alguna TareaPrioridad esta vencida o vence hoy/manana.
+     * Llamado desde hiloAlertas (hilo secundario); la alerta visual
+     * se despacha al EDT con invokeLater para no bloquear el hilo.
+     */
+    /**
+     * Revisa cada tarea prioritaria pendiente y genera alertas según su proximidad.
+     * Cuando la tarea tiene hora de vencimiento, la comparación es exacta al minuto;
+     * sin hora, se compara solo por día.
+     *
+     * Niveles de alerta:
+     *   - VENCIDA      : ya pasó la fecha/hora límite
+     *   - URGENTE      : vence en <= 60 minutos (solo si tiene hora)
+     *   - HOY          : vence hoy (sin hora o más de 60 min restantes)
+     *   - MAÑANA       : vence mañana
+     */
+    private void revisarTareasVencidas() {
+        if (tareas == null) return;
+        DateTimeFormatter fmtFecha = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+        DateTimeFormatter fmtDT    = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+        StringBuilder alerta = new StringBuilder();
+        LocalDateTime ahora  = LocalDateTime.now();
+
+        for (Tarea t : tareas) {
+            if (t.isCompletada()) continue;
+            if (!(t instanceof TareaPrioridad)) continue;
+
+            TareaPrioridad tp = (TareaPrioridad) t;
+            String fechaStr = tp.getFechaLimite();
+            String horaStr  = tp.getHoraLimite();
+            if (fechaStr == null || fechaStr.isEmpty()) continue;
+
+            try {
+                boolean tieneHora = (horaStr != null && !horaStr.isEmpty());
+                String nivel = ""; // nivel de alerta actual: VENCIDA, URGENTE, HOY, MANANA
+
+                if (tieneHora) {
+                    LocalDateTime limite = LocalDateTime.parse(fechaStr + " " + horaStr, fmtDT);
+                    long minutos = java.time.temporal.ChronoUnit.MINUTES.between(ahora, limite);
+                    if      (minutos < 0)    nivel = "VENCIDA";
+                    else if (minutos <= 60)  nivel = "URGENTE";
+                    else if (minutos <= 1440) nivel = "HOY";
+                } else {
+                    java.time.LocalDate limite = java.time.LocalDate.parse(fechaStr, fmtFecha);
+                    long dias = java.time.temporal.ChronoUnit.DAYS.between(ahora.toLocalDate(), limite);
+                    if      (dias < 0)  nivel = "VENCIDA";
+                    else if (dias == 0) nivel = "HOY";
+                    else if (dias == 1) nivel = "MANANA";
+                }
+
+                if (nivel.isEmpty()) continue; // no aplica ningún nivel
+
+                // Clave única: título + nivel. Si ya se notificó este nivel para esta tarea, se omite.
+                // Cuando el nivel cambia (ej: de HOY a URGENTE) la clave es diferente y sí se notifica.
+                String clave = tp.getTitulo() + "_" + nivel;
+                if (tareasNotificadas.contains(clave)) continue;
+                tareasNotificadas.add(clave);
+
+                // Construir el mensaje según el nivel
+                if (tieneHora) {
+                    LocalDateTime limite = LocalDateTime.parse(fechaStr + " " + horaStr, fmtDT);
+                    long minutos = java.time.temporal.ChronoUnit.MINUTES.between(ahora, limite);
+                    if (nivel.equals("VENCIDA")) {
+                        alerta.append("VENCIDA: ").append(tp.getTitulo())
+                              .append(" (vencio el ").append(fechaStr).append(" a las ").append(horaStr).append(")\n");
+                    } else if (nivel.equals("URGENTE")) {
+                        alerta.append("URGENTE: ").append(tp.getTitulo())
+                              .append(" vence en ").append(minutos).append(" min (").append(horaStr).append(")\n");
+                    } else if (nivel.equals("HOY")) {
+                        long horas = minutos / 60;
+                        alerta.append("Hoy vence: ").append(tp.getTitulo())
+                              .append(" a las ").append(horaStr).append(" (en ").append(horas).append("h)\n");
+                    }
+                } else {
+                    if (nivel.equals("VENCIDA")) {
+                        alerta.append("VENCIDA: ").append(tp.getTitulo())
+                              .append(" (vencio el ").append(fechaStr).append(")\n");
+                    } else if (nivel.equals("HOY")) {
+                        alerta.append("HOY vence: ").append(tp.getTitulo()).append("\n");
+                    } else if (nivel.equals("MANANA")) {
+                        alerta.append("Manana vence: ").append(tp.getTitulo()).append("\n");
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("[DEBUG Alertas] Error en tarea: " + tp.getTitulo() + " | fecha: " + fechaStr + " | hora: " + horaStr + " | error: " + e.getMessage());
+            }
+        }
+
+        System.out.println("[DEBUG Alertas] Tareas revisadas. Alertas generadas: " + (alerta.length() > 0 ? alerta.toString() : "ninguna"));
+        if (alerta.length() > 0) {
+            String mensaje = alerta.toString();
+            javax.swing.SwingUtilities.invokeLater(() ->
+                JOptionPane.showMessageDialog(null,
+                    mensaje, "Recordatorio de Tareas",
+                    JOptionPane.WARNING_MESSAGE));
         }
     }
 
@@ -1530,8 +1778,23 @@ public class lumaScreen extends JFrame {
             "Fecha límite (dd-MM-yyyy). Deja vacío si no aplica:");
         if (fechaLimite == null) fechaLimite = "";
 
+        // Pedir hora de vencimiento solo si se ingresó una fecha
+        String horaLimite = "";
+        if (!fechaLimite.trim().isEmpty()) {
+            horaLimite = JOptionPane.showInputDialog(this,
+                "Hora límite (HH:mm, formato 24h). Deja vacío si no aplica:");
+            if (horaLimite == null) horaLimite = "";
+            // Validar formato HH:mm si se ingresó algo
+            if (!horaLimite.trim().isEmpty() && !horaLimite.trim().matches("^([01]?\\d|2[0-3]):[0-5]\\d$")) {
+                JOptionPane.showMessageDialog(this,
+                    "Formato de hora inválido. Se guardará sin hora.", "Aviso",
+                    JOptionPane.WARNING_MESSAGE);
+                horaLimite = "";
+            }
+        }
+
         TareaPrioridad nueva = new TareaPrioridad(
-            nombre.trim(), descripcion.trim(), categoria, 1, fechaLimite.trim());
+            nombre.trim(), descripcion.trim(), categoria, 1, fechaLimite.trim(), horaLimite.trim());
         tareas.add(nueva);
         ManejadorArchivos.guardarTareas(tareas, actual.getArchivo());
         actualizarListaTareas();
@@ -1571,20 +1834,38 @@ public class lumaScreen extends JFrame {
             categorias, seleccionada.getCategoria());
         if (nuevaCategoria == null) nuevaCategoria = seleccionada.getCategoria();
         
-        //modificar fecha limite
+        //modificar fecha y hora limite
         String nuevaFechaLimite = "";
+        String nuevaHoraLimite  = "";
         if (seleccionada instanceof TareaPrioridad) {
-        	TareaPrioridad tp = (TareaPrioridad) seleccionada;
-            nuevaFechaLimite = JOptionPane.showInputDialog(this, "Nueva fecha limite (dd-MM-yyyy):", tp.getFechaLimite());
+            TareaPrioridad tp = (TareaPrioridad) seleccionada;
+            nuevaFechaLimite = JOptionPane.showInputDialog(this,
+                "Nueva fecha límite (dd-MM-yyyy):", tp.getFechaLimite());
             if (nuevaFechaLimite == null) nuevaFechaLimite = tp.getFechaLimite();
+
+            // Pedir hora solo si hay fecha
+            if (!nuevaFechaLimite.trim().isEmpty()) {
+                nuevaHoraLimite = JOptionPane.showInputDialog(this,
+                    "Nueva hora límite (HH:mm, 24h). Deja vacío para quitar la hora:",
+                    tp.getHoraLimite());
+                if (nuevaHoraLimite == null) nuevaHoraLimite = tp.getHoraLimite();
+                if (!nuevaHoraLimite.trim().isEmpty() && !nuevaHoraLimite.trim().matches("^([01]?\\d|2[0-3]):[0-5]\\d$")) {
+                    JOptionPane.showMessageDialog(this,
+                        "Formato de hora inválido. Se guardará sin hora.", "Aviso",
+                        JOptionPane.WARNING_MESSAGE);
+                    nuevaHoraLimite = "";
+                }
+            }
         }
-        
+
         seleccionada.setTitulo(nuevoTitulo.trim());
         seleccionada.setDescripcion(nuevaDescripcion.trim());
         seleccionada.categoria = nuevaCategoria;
-        
-        if (seleccionada instanceof TareaPrioridad && !nuevaFechaLimite.isEmpty()) {
-            ((TareaPrioridad) seleccionada).setFechaLimite(nuevaFechaLimite.trim());
+
+        if (seleccionada instanceof TareaPrioridad && !nuevaFechaLimite.trim().isEmpty()) {
+            TareaPrioridad tpEdit = (TareaPrioridad) seleccionada;
+            tpEdit.setFechaLimite(nuevaFechaLimite.trim());
+            tpEdit.setHoraLimite(nuevaHoraLimite.trim());
         }
         
         //guardar cambios
