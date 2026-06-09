@@ -1198,7 +1198,7 @@ public class lumaScreen extends JFrame {
 
         // Reloj en tiempo real (actualizado por hiloReloj)
         lblReloj = new JLabel("--:--:--");
-        lblReloj.setBounds(VENTANA_ANCHO - 160, 12, 150, 30);
+        lblReloj.setBounds(VENTANA_ANCHO - 160, 12, 120, 30);
         lblReloj.setHorizontalAlignment(SwingConstants.RIGHT);
         lblReloj.setFont(new Font("Segoe UI", Font.BOLD, 18));
         lblReloj.setForeground(azulNeon);
