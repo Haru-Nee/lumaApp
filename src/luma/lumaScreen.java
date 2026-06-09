@@ -645,7 +645,7 @@ class PanelCalendario extends JPanel {
     }
 }
 
-//─── Panel Estadísticas ─────────────────────────────────────────────────────
+//panel de estadisticas
 class PanelEstadisticas extends JPanel {
 	private static final long serialVersionUID = 1L;
 	private ArrayList<Tarea> tareas;
@@ -750,7 +750,7 @@ class PanelEstadisticas extends JPanel {
 	}
 }
 
-//─── Panel Reporte ──────────────────────────────────────────────────────────
+//panel del reporte
 class PanelReporte extends JPanel {
 	private static final long serialVersionUID = 1L;
 	private ArrayList<Tarea> tareas;
@@ -772,14 +772,14 @@ class PanelReporte extends JPanel {
 	 }
 	
 	 private void construir() {
-	     // ── Título ──
+	     //titulo
 	     JLabel titulo = new JLabel("GENERAR REPORTE", SwingConstants.CENTER);
 	     titulo.setFont(new Font("Segoe UI", Font.BOLD, 22));
 	     titulo.setForeground(azulNeon);
 	     titulo.setBorder(new EmptyBorder(8, 0, 4, 0));
 	     add(titulo, java.awt.BorderLayout.NORTH);
 	
-	     // ── Preview ──
+	     //vista previa
 	     areaPreview = new javax.swing.JTextArea();
 	     areaPreview.setEditable(false);
 	     areaPreview.setFont(new Font("Consolas", Font.PLAIN, 13));
@@ -794,7 +794,6 @@ class PanelReporte extends JPanel {
 	     scrollPreview.getViewport().setBackground(new Color(14, 14, 28));
 	     add(scrollPreview, java.awt.BorderLayout.CENTER);
 	
-	     // ── Botones ──
 	     JPanel barraBot = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 18, 6));
 	     barraBot.setOpaque(false);
 	
@@ -1515,9 +1514,7 @@ public class lumaScreen extends JFrame {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // HILOS Y CONCURRENCIA
-    // ─────────────────────────────────────────────────────────────────────────
+    //MANEJO DE HILOS Y CONCURRENCIA
 
     /**
      * Inicia los tres hilos de la aplicación al iniciar sesión:
@@ -1529,7 +1526,7 @@ public class lumaScreen extends JFrame {
     private void iniciarHilos() {
         detenerHilos(); // detiene cualquier hilo previo (por si hubo re-login)
 
-        // ── Hilo 1: Reloj en tiempo real ──────────────────────────────────
+        // hilo de eloj en tiempo real
         hiloReloj = new Thread(() -> {
             DateTimeFormatter fmtHora = DateTimeFormatter.ofPattern("HH:mm:ss");
             while (!Thread.currentThread().isInterrupted()) {
@@ -1548,7 +1545,7 @@ public class lumaScreen extends JFrame {
         hiloReloj.setDaemon(true); // muere cuando cierra la app
         hiloReloj.start();
 
-        // ── Hilo 2: Monitor de alertas de tareas vencidas ─────────────────
+        //hilo de monitor de alertas de tareas vencidas
         hiloAlertas = new Thread(() -> {
             // Primera revisión inmediata al iniciar sesión
             revisarTareasVencidas();
@@ -1566,7 +1563,7 @@ public class lumaScreen extends JFrame {
         hiloAlertas.setDaemon(true);
         hiloAlertas.start();
 
-        // ── Hilo 3: Autoguardado cada 2 minutos ───────────────────────────
+        //hilo de autoguardado cada 2 minutos
         hiloAutoguardado = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 try {

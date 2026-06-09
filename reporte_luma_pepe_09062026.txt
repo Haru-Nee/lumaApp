@@ -1,0 +1,31 @@
+════════════════════════════════════════════════════════════
+  REPORTE LUMA - GESTOR DE TAREAS
+  Usuario : Christopher Teran (@pepe)
+  Fecha   : 09/06/2026
+════════════════════════════════════════════════════════════
+
+  RESUMEN GENERAL
+────────────────────────────────────────────────────────────
+  Total de tareas  : 2
+  Completadas      : 1
+  Pendientes       : 1
+  Rendimiento      : 50.0%
+
+ TAREAS COMPLETADAS
+────────────────────────────────────────────────────────────
+  * Proyecto de progra
+      Categoría  : Programacion
+      Creada     : 09-06-2026
+      Completada : 09-06-2026
+
+   TAREAS PENDIENTES
+────────────────────────────────────────────────────────────
+  * Ensamblador
+      Categoría  : Ensamblador
+      Creada     : 09-06-2026
+      Fecha lím. : 14-06-2026
+      Días rest. : 5
+
+════════════════════════════════════════════════════════════
+  Reporte generado por LUMA Task Manager
+════════════════════════════════════════════════════════════
